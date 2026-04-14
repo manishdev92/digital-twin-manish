@@ -1,0 +1,100 @@
+# Week 2 Day 5 — push to main or "Run workflow" to deploy
+name: Deploy Digital Twin
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - test
+          - prod
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy ${{ github.event.inputs.environment || 'dev' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: github-actions-deploy
+          aws-region: ${{ secrets.DEFAULT_AWS_REGION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Run deployment script
+        run: |
+          export AWS_ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
+          export DEFAULT_AWS_REGION="${{ secrets.DEFAULT_AWS_REGION }}"
+          chmod +x scripts/deploy.sh
+          ./scripts/deploy.sh "${{ github.event.inputs.environment || 'dev' }}"
+
+      - name: Terraform outputs (URLs)
+        id: deploy_outputs
+        working-directory: terraform
+        run: |
+          # shellcheck disable=SC1091
+          source "$GITHUB_WORKSPACE/scripts/lib-terraform-backend.sh"
+          ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+          REGION="$(terraform_state_backend_region)"
+          terraform init -input=false \
+            -backend-config="bucket=twin-terraform-state-${ACCOUNT}" \
+            -backend-config="key=terraform.tfstate" \
+            -backend-config="region=${REGION}" \
+            -backend-config="dynamodb_table=twin-terraform-locks" \
+            -backend-config="encrypt=true"
+          terraform workspace select "${{ github.event.inputs.environment || 'dev' }}"
+          echo "cloudfront_url=$(terraform output -raw cloudfront_url)" >> "$GITHUB_OUTPUT"
+          echo "api_url=$(terraform output -raw api_gateway_url)" >> "$GITHUB_OUTPUT"
+          echo "distribution_id=$(terraform output -raw cloudfront_distribution_id)" >> "$GITHUB_OUTPUT"
+
+      - name: Invalidate CloudFront
+        run: |
+          DIST="${{ steps.deploy_outputs.outputs.distribution_id }}"
+          if [ -n "$DIST" ] && [ "$DIST" != "null" ]; then
+            aws cloudfront create-invalidation --distribution-id "$DIST" --paths "/*"
+          fi
+
+      - name: Deployment summary
+        run: |
+          echo "## Deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **CloudFront (app):** ${{ steps.deploy_outputs.outputs.cloudfront_url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **API:** ${{ steps.deploy_outputs.outputs.api_url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Open the **Actions** tab → this run → **Deployment summary** above, or expand **Terraform outputs** / **Deployment summary** steps."

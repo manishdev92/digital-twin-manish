@@ -1,8 +1,10 @@
 project_name             = "twin"
 environment              = "prod"
+github_repository        = "manishdev92/digital-twin-manish"
 bedrock_model_id         = "global.amazon.nova-2-lite-v1:0"  # Course FAQ Q42; optional bedrock_runtime_region in tfvars
 lambda_timeout           = 60
 api_throttle_burst_limit = 20
 api_throttle_rate_limit  = 10
-use_custom_domain        = true
-root_domain              = "yourdomain.com"  # Replace with your actual domain
+# Day 4 Part 8: set use_custom_domain = true and root_domain when DNS is ready.
+use_custom_domain        = false
+root_domain              = ""

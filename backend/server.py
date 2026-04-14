@@ -17,6 +17,7 @@ from botocore.exceptions import (
     ReadTimeoutError,
 )
 from context import prompt
+from openai import OpenAI
 
 # Load environment variables
 load_dotenv()
@@ -59,6 +60,11 @@ _BEDROCK_CLIENT_CFG = Config(
 
 # Local / demo only: skip Bedrock and return a stub reply (never set on production Lambda).
 _BEDROCK_STUB = os.getenv("BEDROCK_STUB_MODE", "").strip().lower() in ("1", "true", "yes")
+
+# openai | bedrock (Lambda env set by Terraform; local can use .env)
+_LLM_PROVIDER = os.getenv("LLM_PROVIDER", "bedrock").strip().lower()
+_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
+_OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()
 
 # Shown on 429 so users find the right Service Quotas (not Data Automation rows)
 _BEDROCK_QUOTA_HELP = (
@@ -337,13 +343,58 @@ def call_bedrock(conversation: List[Dict], user_message: str) -> str:
     )
 
 
+def call_openai(conversation: List[Dict], user_message: str) -> str:
+    """OpenAI Chat Completions (same memory shape as Bedrock path)."""
+    if not _OPENAI_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "LLM_PROVIDER is openai but OPENAI_API_KEY is empty. "
+                "Set the key on the Lambda environment (e.g. TF_VAR_openai_api_key via deploy.sh + .env) "
+                "or set LLM_PROVIDER=bedrock to use Amazon Bedrock."
+            ),
+        )
+    client = OpenAI(api_key=_OPENAI_API_KEY, timeout=25.0, max_retries=1)
+    sys_text = _bedrock_system_text()
+    prior = _prior_messages_for_converse(conversation)
+    oa_messages: List[Dict[str, str]] = []
+    if sys_text:
+        oa_messages.append({"role": "system", "content": sys_text})
+    for m in prior:
+        oa_messages.append({"role": m["role"], "content": m["content"]})
+    oa_messages.append({"role": "user", "content": user_message.strip()})
+    try:
+        resp = client.chat.completions.create(
+            model=_OPENAI_MODEL,
+            messages=oa_messages,
+            max_tokens=512,
+            temperature=0.7,
+        )
+    except Exception as e:
+        print(f"OpenAI error: {e}")
+        raise HTTPException(status_code=502, detail=f"OpenAI error: {e}") from e
+    text = (resp.choices[0].message.content or "").strip()
+    if not text:
+        raise HTTPException(status_code=502, detail="OpenAI returned empty content")
+    return text
+
+
+def call_llm(conversation: List[Dict], user_message: str) -> str:
+    if _LLM_PROVIDER == "openai":
+        return call_openai(conversation, user_message)
+    return call_bedrock(conversation, user_message)
+
+
 @app.get("/")
 async def root():
+    prov = "openai" if _LLM_PROVIDER == "openai" else "bedrock"
+    model_disp = _OPENAI_MODEL if prov == "openai" else BEDROCK_MODEL_ID
     return {
-        "message": "AI Digital Twin API (Powered by AWS Bedrock)",
+        "message": f"AI Digital Twin API (LLM: {prov})",
         "memory_enabled": True,
         "storage": "S3" if USE_S3 else "local",
-        "ai_model": BEDROCK_MODEL_ID
+        "ai_model": model_disp,
+        "llm_provider": prov,
     }
 
 
@@ -352,6 +403,9 @@ async def health_check():
     return {
         "status": "healthy",
         "use_s3": USE_S3,
+        "llm_provider": _LLM_PROVIDER,
+        "openai_model": _OPENAI_MODEL,
+        "openai_key_set": bool(_OPENAI_API_KEY),
         "bedrock_model": BEDROCK_MODEL_ID,
         "bedrock_api_region": _bedrock_api_region,
         "bedrock_stub": _BEDROCK_STUB,
@@ -379,8 +433,7 @@ async def chat(request: ChatRequest):
         # Load conversation history
         conversation = load_conversation(session_id)
 
-        # Call Bedrock for response
-        assistant_response = call_bedrock(conversation, request.message)
+        assistant_response = call_llm(conversation, request.message)
 
         # Update conversation history
         conversation.append(

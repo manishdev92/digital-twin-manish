@@ -1,9 +1,12 @@
-# Terraform
+# Terraform (Day 4: ignore secrets; keep checked-in defaults)
 *.tfstate
 *.tfstate.*
 .terraform/
 .terraform.lock.hcl
 terraform.tfstate.d/
+*.tfvars
+!terraform/terraform.tfvars
+!terraform/prod.tfvars
 *.tfvars.secret
 
 # Lambda packages
@@ -29,6 +32,7 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+uv.lock
 
 # IDE
 .vscode/

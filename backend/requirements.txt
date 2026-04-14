@@ -3,5 +3,6 @@ uvicorn
 python-dotenv
 python-multipart
 boto3
+openai
 pypdf
 mangum

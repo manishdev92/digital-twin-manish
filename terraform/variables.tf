@@ -57,3 +57,27 @@ variable "root_domain" {
   type        = string
   default     = ""
 }
+
+variable "llm_provider" {
+  description = "LLM backend: bedrock (course default) or openai"
+  type        = string
+  default     = "bedrock"
+
+  validation {
+    condition     = contains(["bedrock", "openai"], var.llm_provider)
+    error_message = "llm_provider must be bedrock or openai."
+  }
+}
+
+variable "openai_api_key" {
+  description = "OpenAI API key for Lambda when llm_provider=openai (use TF_VAR_openai_api_key or .env OPENAI_API_KEY via deploy.sh; never commit)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "openai_model" {
+  description = "OpenAI chat model id when llm_provider=openai"
+  type        = string
+  default     = "gpt-4o-mini"
+}
