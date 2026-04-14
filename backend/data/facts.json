@@ -1,0 +1,23 @@
+{
+    "full_name": "Manish Kumar Tiwari",
+    "name": "Manish",
+    "current_role": "Your Current Role",
+    "location": "Varanasi, Uttar Pradesh, India",
+    "email": "manishprofessional2023@gmail.com",
+    "linkedin": "https://www.linkedin.com/in/manish-tiwari-01446768/",
+    "specialties": [
+      "AI Engineer",
+      "Data Engineer",
+      "AI Data Leader",
+      "Data Engineering",
+      "Data Architecture"
+    ],
+    "years_experience": 12,
+    "education": [
+      {
+        "degree": "Bachelor of Technology, Computer Science and Engineering",
+        "institution": "Bundelkhand Institute of Technology, Jhansi",
+        "year": "2013"
+      }
+    ]
+  }

@@ -1,0 +1,13 @@
+I am a AI Enabled Data ENgineer & AI Engineer with 12 of experience in Data, AI and Analytics field. 
+My expertise includes Developing Data and AI solutions for the companies.
+
+Currently, I'm focused on AI research and AI, GenAI based project development.
+
+My background includes Data , Analytics and GenAI and agentic AI systems.
+
+ALso
+Currently, I am focused on transitioning into Generative AI and building intelligent, AI-powered systems. My work includes developing RAG-based applications, agentic workflows, and integrating LLMs with enterprise data platforms to create scalable AI solutions.
+
+I am particularly interested in solving real-world business problems by combining Data Engineering with GenAI—bridging the gap between data infrastructure and intelligent decision-making systems.
+
+I’m also working towards building my own AI-driven solutions under my long-term vision of launching a data + AI company.
