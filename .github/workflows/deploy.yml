@@ -58,7 +58,13 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
+      # Optional: add repository secret OPENAI_API_KEY to use OpenAI on Lambda (avoids Bedrock on-demand quotas in CI).
+      # deploy.sh passes -var when this env var is set (same as local .env). OPENAI_MODEL defaults to gpt-4o-mini; set env OPENAI_MODEL in a Variables workflow file if needed.
       - name: Run deployment script
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+          LLM_PROVIDER: ${{ vars.LLM_PROVIDER }}
         run: |
           export AWS_ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
           export DEFAULT_AWS_REGION="${{ secrets.DEFAULT_AWS_REGION }}"
