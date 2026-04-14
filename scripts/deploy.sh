@@ -110,9 +110,23 @@ run_terraform_apply() {
 echo "🎯 Applying Terraform..."
 apply_attempt=1
 apply_max=3
+apply_log=$(mktemp "${TMPDIR:-/tmp}/twin-tf-apply.XXXXXX")
+trap 'rm -f "$apply_log"' EXIT
 while [ "$apply_attempt" -le "$apply_max" ]; do
-  if run_terraform_apply; then
+  set +e
+  run_terraform_apply >"$apply_log" 2>&1
+  apply_rc=$?
+  set -e
+  if [ "$apply_rc" -eq 0 ]; then
+    cat "$apply_log"
     break
+  fi
+  cat "$apply_log"
+  if grep -q 'Error acquiring the state lock' "$apply_log"; then
+    echo ""
+    echo "❌ Terraform remote state is locked (DynamoDB). Another run may hold the lock, or a past run left it stale."
+    echo "   Unlock from a machine with AWS access: cd terraform && terraform workspace select ${ENVIRONMENT} && terraform force-unlock <Lock ID from the log above>"
+    exit 1
   fi
   if [ "$apply_attempt" -eq "$apply_max" ]; then
     echo "❌ terraform apply failed after ${apply_max} attempts."
